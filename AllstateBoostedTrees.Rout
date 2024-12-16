@@ -1,0 +1,191 @@
+
+R version 4.3.3 (2024-02-29) -- "Angel Food Cake"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(tidyverse)
+── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ dplyr     1.1.4     ✔ readr     2.1.5
+✔ forcats   1.0.0     ✔ stringr   1.5.1
+✔ ggplot2   3.5.1     ✔ tibble    3.2.1
+✔ lubridate 1.9.3     ✔ tidyr     1.3.1
+✔ purrr     1.0.2     
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+> library(tidymodels)
+── Attaching packages ────────────────────────────────────── tidymodels 1.2.0 ──
+✔ broom        1.0.7     ✔ rsample      1.2.1
+✔ dials        1.3.0     ✔ tune         1.2.1
+✔ infer        1.0.7     ✔ workflows    1.1.4
+✔ modeldata    1.4.0     ✔ workflowsets 1.1.0
+✔ parsnip      1.2.1     ✔ yardstick    1.3.1
+✔ recipes      1.1.0     
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ scales::discard() masks purrr::discard()
+✖ dplyr::filter()   masks stats::filter()
+✖ recipes::fixed()  masks stringr::fixed()
+✖ dplyr::lag()      masks stats::lag()
+✖ yardstick::spec() masks readr::spec()
+✖ recipes::step()   masks stats::step()
+• Search for functions across packages at https://www.tidymodels.org/find/
+> library(vroom)
+
+Attaching package: ‘vroom’
+
+The following object is masked from ‘package:yardstick’:
+
+    spec
+
+The following object is masked from ‘package:scales’:
+
+    col_factor
+
+The following objects are masked from ‘package:readr’:
+
+    as.col_spec, col_character, col_date, col_datetime, col_double,
+    col_factor, col_guess, col_integer, col_logical, col_number,
+    col_skip, col_time, cols, cols_condense, cols_only, date_names,
+    date_names_lang, date_names_langs, default_locale, fwf_cols,
+    fwf_empty, fwf_positions, fwf_widths, locale, output_column,
+    problems, spec
+
+> library(glmnet)
+Loading required package: Matrix
+
+Attaching package: ‘Matrix’
+
+The following objects are masked from ‘package:tidyr’:
+
+    expand, pack, unpack
+
+Loaded glmnet 4.1-8
+> library(rpart)
+
+Attaching package: ‘rpart’
+
+The following object is masked from ‘package:dials’:
+
+    prune
+
+> library(ranger)
+> library(xgboost)
+
+Attaching package: ‘xgboost’
+
+The following object is masked from ‘package:dplyr’:
+
+    slice
+
+> library(embed)
+> 
+> ## Read in Data
+> train <- vroom('train.csv')
+Rows: 188318 Columns: 132
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+chr (116): cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8, cat9, cat10, cat1...
+dbl  (16): id, cont1, cont2, cont3, cont4, cont5, cont6, cont7, cont8, cont9...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> test <- vroom('test.csv')
+Rows: 125546 Columns: 131
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+chr (116): cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8, cat9, cat10, cat1...
+dbl  (15): id, cont1, cont2, cont3, cont4, cont5, cont6, cont7, cont8, cont9...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> 
+> 
+> ## Receipe
+> my_recipe <- recipe(loss ~ ., data = train) %>%
++   step_rm(id) %>% 
++   step_other(all_nominal_predictors(), threshold = .001) %>% 
++   step_lencode_mixed(all_nominal_predictors(), outcome = vars(loss)) %>% 
++   step_corr(all_numeric_predictors(), threshold = 0.6) %>% 
++   step_normalize(all_numeric_predictors())%>% 
++   step_zv(all_predictors())
+> 
+> 
+> 
+> model <- boost_tree(
++   mode = "regression",
++   engine = "xgboost",
++   trees = tune(),
++   min_n = tune(),
++   tree_depth = tune(),
++   learn_rate = tune(),
++   loss_reduction = tune(),
++   stop_iter = tune()
++ )
+> 
+> 
+> ## Workflow
+> workflow <- workflow() |>
++   add_recipe(my_recipe) |>
++   add_model(model)
+> 
+> 
+> grid <- grid_regular(trees(),
++                      min_n(),
++                      tree_depth(),
++                      learn_rate(),
++                      loss_reduction(),
++                      stop_iter(),
++                      levels = 5)
+> 
+> fold <- vfold_cv(train, v = 5, repeats = 1)
+> 
+> CV <- workflow |>
++   tune_grid(resamples = fold, grid = grid, metrics = metric_set(rmse, mae, rsq))
+boundary (singular) fit: see help('isSingular')
+boundary (singular) fit: see help('isSingular')
+boundary (singular) fit: see help('isSingular')
+→ A | error:   ℹ In index: 2.
+               Caused by error in `predict.xgb.Booster()`:
+               ! [16:59:37] src/gbm/gbtree.cc:549: Check failed: tree_end <= model_.trees.size() (500 vs. 4) : Invalid number of trees.
+               Stack trace:
+                 [bt] (0) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(+0x6e0ef) [0x7ff025e6e0ef]
+                 [bt] (1) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(+0x100613) [0x7ff025f00613]
+                 [bt] (2) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(+0x26168e) [0x7ff02606168e]
+                 [bt] (3) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(XGBoosterPredictFromDMatrix+0x3bc) [0x7ff0260ccb7c]
+                 [bt] (4) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(XGBoosterPredictFromDMatrix_R+0x88) [0x7ff025e69078]
+                 [bt] (5) /usr/lib/R/lib/libR.so(+0x10269e) [0x7ff03010269e]
+                 [bt] (6) /usr/lib/R/lib/libR.so(+0x14740c) [0x7ff03014740c]
+                 [bt] (7) /usr/lib/R/lib/libR.so(Rf_eval+0x180) [0x7ff03015af20]
+                 [bt] (8) /usr/lib/R/lib/libR.so(+0x15d1d3) [0x7ff03015d1d3]
+               
+There were issues with some computations   A: x1
+→ B | error:   ℹ In index: 2.
+               Caused by error in `predict.xgb.Booster()`:
+               ! [17:17:45] src/gbm/gbtree.cc:549: Check failed: tree_end <= model_.trees.size() (500 vs. 4) : Invalid number of trees.
+               Stack trace:
+                 [bt] (0) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(+0x6e0ef) [0x7ff025e6e0ef]
+                 [bt] (1) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(+0x100613) [0x7ff025f00613]
+                 [bt] (2) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(+0x26168e) [0x7ff02606168e]
+                 [bt] (3) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(XGBoosterPredictFromDMatrix+0x3bc) [0x7ff0260ccb7c]
+                 [bt] (4) /usr/local/lib/R/site-library/xgboost/libs/xgboost.so(XGBoosterPredictFromDMatrix_R+0x88) [0x7ff025e69078]
+                 [bt] (5) /usr/lib/R/lib/libR.so(+0x10269e) [0x7ff03010269e]
+                 [bt] (6) /usr/lib/R/lib/libR.so(+0x14740c) [0x7ff03014740c]
+                 [bt] (7) /usr/lib/R/lib/libR.so(Rf_eval+0x180) [0x7ff03015af20]
+                 [bt] (8) /usr/lib/R/lib/libR.so(+0x15d1d3) [0x7ff03015d1d3]
+               
+There were issues with some computations   A: x1There were issues with some computations   A: x1   B: x1

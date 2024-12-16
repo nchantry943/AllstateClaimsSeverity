@@ -1,0 +1,126 @@
+
+R version 4.3.3 (2024-02-29) -- "Angel Food Cake"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(tidymodels)
+── Attaching packages ────────────────────────────────────── tidymodels 1.2.0 ──
+✔ broom        1.0.7     ✔ recipes      1.1.0
+✔ dials        1.3.0     ✔ rsample      1.2.1
+✔ dplyr        1.1.4     ✔ tibble       3.2.1
+✔ ggplot2      3.5.1     ✔ tidyr        1.3.1
+✔ infer        1.0.7     ✔ tune         1.2.1
+✔ modeldata    1.4.0     ✔ workflows    1.1.4
+✔ parsnip      1.2.1     ✔ workflowsets 1.1.0
+✔ purrr        1.0.2     ✔ yardstick    1.3.1
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard() masks scales::discard()
+✖ dplyr::filter()  masks stats::filter()
+✖ dplyr::lag()     masks stats::lag()
+✖ recipes::step()  masks stats::step()
+• Use tidymodels_prefer() to resolve common conflicts.
+> library(forecast)
+Registered S3 method overwritten by 'quantmod':
+  method            from
+  as.zoo.data.frame zoo 
+
+Attaching package: ‘forecast’
+
+The following object is masked from ‘package:yardstick’:
+
+    accuracy
+
+> library(vroom)
+
+Attaching package: ‘vroom’
+
+The following object is masked from ‘package:yardstick’:
+
+    spec
+
+The following object is masked from ‘package:scales’:
+
+    col_factor
+
+> library(ggplot2)
+> library(rpart)
+
+Attaching package: ‘rpart’
+
+The following object is masked from ‘package:dials’:
+
+    prune
+
+> library(embed)
+> library(bonsai)
+> library(lightgbm)
+> 
+> test <- vroom('test.csv')
+Rows: 125546 Columns: 131
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+chr (116): cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8, cat9, cat10, cat1...
+dbl  (15): id, cont1, cont2, cont3, cont4, cont5, cont6, cont7, cont8, cont9...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> train <- vroom('train.csv')
+Rows: 188318 Columns: 132
+── Column specification ────────────────────────────────────────────────────────
+Delimiter: ","
+chr (116): cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8, cat9, cat10, cat1...
+dbl  (16): id, cont1, cont2, cont3, cont4, cont5, cont6, cont7, cont8, cont9...
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> 
+> my_recipe <- recipe(loss ~ ., data = train) %>%
++   step_rm(id) %>% 
++   step_other(all_nominal_predictors(), threshold = .001) %>% 
++   step_lencode_mixed(all_nominal_predictors(), outcome = vars(loss)) %>% 
++   step_corr(all_numeric_predictors(), threshold = 0.6) %>% 
++   step_normalize(all_numeric_predictors())%>% 
++   step_zv(all_predictors())
+>   
+>  
+> 
+> rand_for_mod <- rand_forest(mtry = tune(),
++                             min_n = tune(), 
++                             trees = 500) |>
++   set_engine('ranger') |>
++   set_mode("regression")
+> 
+> rand_work <- workflow() |>
++   add_recipe(my_recipe) |>
++   add_model(rand_for_mod)
+> 
+> grid1 <- grid_regular(mtry(range = c(2, round(sqrt(ncol(train))))),
++                       min_n(range = c(2, 20)),
++                       levels = 4)
+> 
+> fold1 <- vfold_cv(train, v = 5, repeats = 1)
+> 
+> CV1 <- rand_work |>
++   tune_grid(resamples = fold1, 
++             grid = grid1, 
++             metrics = metric_set(rmse, mae, rsq))
+boundary (singular) fit: see help('isSingular')
+boundary (singular) fit: see help('isSingular')
+→ A | warning: !  The following column has zero variance so scaling cannot be used: cat15.
+               ℹ Consider using ?step_zv (`?recipes::step_zv()`) to remove those columns
+                 before normalizing.
+There were issues with some computations   A: x1
